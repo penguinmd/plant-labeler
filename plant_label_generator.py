@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""
+Plant Label STL Generator
+
+This script reads a CSV file containing plant information and automatically generates
+STL files for 3D printable plant labels using OpenSCAD.
+
+Requirements:
+- Python 3.6+
+- pandas library (pip install pandas)
+- OpenSCAD installed and accessible from command line
+
+Usage:
+    python plant_label_generator.py
+
+The script will:
+1. Read 'plant list.csv' 
+2. Generate individual .scad files for each plant
+3. Use OpenSCAD to render .stl files for 3D printing
+4. Clean up temporary .scad files (optional)
+"""
+
+import pandas as pd
+import subprocess
+import os
+import sys
+import re
+from pathlib import Path
+
+class PlantLabelGenerator:
+    def __init__(self, csv_file="plant list.csv", template_file="Enhanced Plant Labeler.scad"):
+        self.csv_file = csv_file
+        self.template_file = template_file
+        self.output_dir = "generated_labels"
+        self.temp_dir = "temp_scad"
+        
+        # Create output directories
+        Path(self.output_dir).mkdir(exist_ok=True)
+        Path(self.temp_dir).mkdir(exist_ok=True)
+        
+    def count_emoji_symbols(self, symbol_text):
+        """Count water drops (💧) or light symbols (☀️/☁️) in emoji text"""
+        if pd.isna(symbol_text) or symbol_text == "":
+            return 1  # Default value
+        
+        # Count water drops
+        water_count = symbol_text.count('💧')
+        if water_count > 0:
+            return min(water_count, 3)  # Max 3 water drops
+        
+        # Count sun symbols for light
+        sun_count = symbol_text.count('☀️')
+        cloud_count = symbol_text.count('☁️')
+        
+        if sun_count >= 3:
+            return 1  # Full sun (3 suns)
+        elif sun_count >= 1 and cloud_count >= 1:
+            if symbol_text.index('☀️') < symbol_text.index('☁️'):
+                return 2  # Partial sun (sun + cloud)
+            else:
+                return 3  # Partial shade (cloud + sun)
+        elif cloud_count >= 1:
+            return 3  # Partial shade
+        else:
+            return 1  # Default to full sun
+    
+    def sanitize_filename(self, name):
+        """Create a safe filename from plant name"""
+        # Remove special characters and replace spaces with underscores
+        filename = re.sub(r'[^\w\s-]', '', name)
+        filename = re.sub(r'[-\s]+', '_', filename)
+        return filename.strip('_')
+    
+    def load_template(self):
+        """Load the OpenSCAD template file"""
+        try:
+            with open(self.template_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            print(f"Error: Template file '{self.template_file}' not found!")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error reading template file: {e}")
+            sys.exit(1)
+    
+    def extract_nickname(self, common_name):
+        """Extract nickname from common name if it contains quotes"""
+        # Look for text in single quotes like "Maranta 'Lemon Lime'"
+        quote_match = re.search(r"'([^']*)'", common_name)
+        if quote_match:
+            nickname = quote_match.group(1)
+            base_name = re.sub(r"'[^']*'", "", common_name).strip()
+            return base_name, nickname
+        
+        # Look for text in double quotes
+        quote_match = re.search(r'"([^"]*)"', common_name)
+        if quote_match:
+            nickname = quote_match.group(1)
+            base_name = re.sub(r'"[^"]*"', "", common_name).strip()
+            return base_name, nickname
+        
+        return common_name, ""
+    
+    def generate_scad_content(self, plant_data, template):
+        """Generate OpenSCAD content for a specific plant"""
+        common_name, nickname = self.extract_nickname(plant_data['Common Name'])
+        scientific_name = plant_data['Scientific Name']
+        
+        # Convert emoji symbols to numeric values
+        water_drops = self.count_emoji_symbols(plant_data['Water Symbol'])
+        light_type = self.count_emoji_symbols(plant_data['Light Symbol'])
+        
+        # Replace individual parameters in the template
+        modified_content = template
+        
+        # Replace plant_name
+        modified_content = re.sub(
+            r'plant_name\s*=\s*"[^"]*";',
+            f'plant_name = "{common_name}";',
+            modified_content
+        )
+        
+        # Replace scientific_name
+        modified_content = re.sub(
+            r'scientific_name\s*=\s*"[^"]*";',
+            f'scientific_name = "{scientific_name}";',
+            modified_content
+        )
+        
+        # Replace nickname
+        modified_content = re.sub(
+            r'nickname\s*=\s*"[^"]*";',
+            f'nickname = "{nickname}";',
+            modified_content
+        )
+        
+        # Replace water_drops
+        modified_content = re.sub(
+            r'water_drops\s*=\s*\d+;',
+            f'water_drops = {water_drops};',
+            modified_content
+        )
+        
+        # Replace light_type
+        modified_content = re.sub(
+            r'light_type\s*=\s*\d+;',
+            f'light_type = {light_type};',
+            modified_content
+        )
+        
+        return modified_content
+    
+    def generate_scad_file(self, plant_data, template):
+        """Generate a .scad file for a specific plant"""
+        filename = self.sanitize_filename(plant_data['Common Name'])
+        scad_filename = f"{self.temp_dir}/{filename}.scad"
+        
+        content = self.generate_scad_content(plant_data, template)
+        
+        try:
+            with open(scad_filename, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return scad_filename, filename
+        except Exception as e:
+            print(f"Error writing SCAD file for {plant_data['Common Name']}: {e}")
+            return None, None
+    
+    def render_stl(self, scad_file, output_filename):
+        """Use OpenSCAD to render STL file"""
+        stl_output = f"{self.output_dir}/{output_filename}.stl"
+        
+        try:
+            # OpenSCAD command to render STL
+            cmd = ["openscad", "-o", stl_output, scad_file]
+            
+            print(f"Rendering {output_filename}.stl...")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            
+            if result.returncode == 0:
+                print(f"✓ Successfully created {stl_output}")
+                return True
+            else:
+                print(f"✗ Failed to render {output_filename}.stl")
+                print(f"Error: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print(f"✗ Timeout rendering {output_filename}.stl")
+            return False
+        except FileNotFoundError:
+            print("✗ OpenSCAD not found! Please install OpenSCAD and make sure it's in your PATH.")
+            print("Download from: https://openscad.org/downloads.html")
+            return False
+        except Exception as e:
+            print(f"✗ Error rendering {output_filename}.stl: {e}")
+            return False
+    
+    def check_openscad(self):
+        """Check if OpenSCAD is available"""
+        try:
+            result = subprocess.run(["openscad", "--version"], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                print(f"OpenSCAD found: {result.stdout.strip()}")
+                return True
+        except:
+            pass
+        
+        print("⚠️  OpenSCAD not found in PATH!")
+        print("Please install OpenSCAD from: https://openscad.org/downloads.html")
+        print("Make sure it's accessible from command line.")
+        return False
+    
+    def load_plant_data(self):
+        """Load plant data from CSV file"""
+        try:
+            df = pd.read_csv(self.csv_file)
+            print(f"Loaded {len(df)} plants from {self.csv_file}")
+            
+            # Verify required columns
+            required_cols = ['Common Name', 'Scientific Name', 'Water Symbol', 'Light Symbol']
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            
+            if missing_cols:
+                print(f"Error: Missing required columns: {missing_cols}")
+                return None
+            
+            return df
+        except FileNotFoundError:
+            print(f"Error: CSV file '{self.csv_file}' not found!")
+            return None
+        except Exception as e:
+            print(f"Error reading CSV file: {e}")
+            return None
+    
+    def cleanup_temp_files(self, keep_scad=False):
+        """Clean up temporary SCAD files"""
+        if not keep_scad:
+            try:
+                import shutil
+                shutil.rmtree(self.temp_dir)
+                print(f"Cleaned up temporary files in {self.temp_dir}")
+            except Exception as e:
+                print(f"Warning: Could not clean up temp files: {e}")
+    
+    def generate_all_labels(self, keep_scad_files=False):
+        """Main method to generate all plant labels"""
+        print("🌱 Plant Label STL Generator")
+        print("=" * 50)
+        
+        # Check dependencies
+        if not self.check_openscad():
+            return False
+        
+        # Load data
+        df = self.load_plant_data()
+        if df is None:
+            return False
+        
+        template = self.load_template()
+        
+        # Process each plant
+        successful = 0
+        failed = 0
+        
+        print(f"\nGenerating labels for {len(df)} plants...")
+        print("-" * 50)
+        
+        for index, plant in df.iterrows():
+            plant_name = plant['Common Name']
+            print(f"\n[{index+1}/{len(df)}] Processing: {plant_name}")
+            
+            # Generate SCAD file
+            scad_file, filename = self.generate_scad_file(plant, template)
+            if scad_file is None:
+                failed += 1
+                continue
+            
+            # Render STL
+            if self.render_stl(scad_file, filename):
+                successful += 1
+            else:
+                failed += 1
+        
+        # Summary
+        print("\n" + "=" * 50)
+        print(f"🎉 Generation complete!")
+        print(f"✓ Successful: {successful}")
+        print(f"✗ Failed: {failed}")
+        print(f"📁 STL files saved to: {self.output_dir}/")
+        
+        if keep_scad_files:
+            print(f"📁 SCAD files saved to: {self.temp_dir}/")
+        else:
+            self.cleanup_temp_files()
+        
+        return successful > 0
+
+def main():
+    """Main entry point"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Generate 3D printable plant labels from CSV data')
+    parser.add_argument('--csv', default='plant list.csv', help='CSV file with plant data')
+    parser.add_argument('--template', default='Enhanced Plant Labeler.scad', help='OpenSCAD template file')
+    parser.add_argument('--keep-scad', action='store_true', help='Keep temporary SCAD files')
+    parser.add_argument('--output-dir', default='generated_labels', help='Output directory for STL files')
+    
+    args = parser.parse_args()
+    
+    # Create generator
+    generator = PlantLabelGenerator(args.csv, args.template)
+    generator.output_dir = args.output_dir
+    
+    # Generate all labels
+    success = generator.generate_all_labels(args.keep_scad)
+    
+    if success:
+        print(f"\n🎯 Ready for 3D printing! Check the '{generator.output_dir}' folder.")
+    else:
+        print("\n❌ Generation failed. Please check the errors above.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

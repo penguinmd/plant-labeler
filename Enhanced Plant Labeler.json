@@ -1,0 +1,41 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "base_height": "30",
+            "base_width": "80",
+            "corner_radius": "3",
+            "enable_hanging_holes": "false",
+            "font_name": "Liberation Sans",
+            "frame_height": "1",
+            "frame_width": "1.5",
+            "hole_diameter": "3",
+            "hole_margin_x": "4",
+            "hole_margin_y": "4",
+            "label_height": "30",
+            "label_thickness": "3",
+            "label_width": "80",
+            "light_type": "2",
+            "nickname": "",
+            "plant_name": "Golden Pothos",
+            "scientific_name": "Epipremnum aureum",
+            "show_frame": "true",
+            "show_light_symbols": "true",
+            "show_nickname": "true",
+            "show_plant_name": "true",
+            "show_scientific_name": "true",
+            "show_water_symbols": "true",
+            "spike_base_radius": "1.5",
+            "spike_enabled": "true",
+            "spike_length": "40",
+            "spike_position": "0",
+            "spike_taper": "0.69999999999999996",
+            "spike_width": "6",
+            "symbol_size_multiplier": "1",
+            "text_height": "1.5",
+            "text_margin": "0.050000000000000003",
+            "text_size_multiplier": "1",
+            "water_drops": "2"
+        }
+    }
+}

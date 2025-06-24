@@ -1,0 +1,5 @@
+.DS_Store
+generated_labels/
+Old Files/
+*.pyc
+__pycache__/
