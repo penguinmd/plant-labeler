@@ -26,6 +26,8 @@ show_nickname = true;
 show_water_symbols = true;
 // Show light requirement symbols
 show_light_symbols = true;
+// Show "water when dry" reminder symbol
+show_dry_soil_symbol = true;
 
 /* [Plant Care Requirements] */
 // Water requirement: 1 = low, 2 = medium, 3 = high, 4 = very high
@@ -221,11 +223,11 @@ module water_drop_outlined(size) {
     }
 }
 
-// Module for 4 water drops with progress bar style filling
+// Module for 4 water drops with progress bar style filling (left-aligned)
 module water_drops(level, size, spacing) {
     if (show_water_symbols) {
         for (i = [0 : 3]) {
-            translate([i * spacing - 1.5 * spacing, 0, 0]) {
+            translate([i * spacing, 0, 0]) {
                 if (i < level) {
                     water_drop_filled(size);
                 } else {
@@ -259,17 +261,11 @@ module sun_symbol_filled(size) {
     }
 }
 
-// Enhanced sun symbol - outlined version
+// Enhanced sun symbol - outlined version (rays only, no center circle)
 module sun_symbol_outlined(size) {
     scale(0.7) {
         linear_extrude(height = symbol_text_height) {
-            // Center circle outline
-            difference() {
-                circle(r = size/3, $fn = 32);
-                circle(r = size/3 - 0.6, $fn = 32);
-            }
-            
-            // Sun rays outline - 8 triangular rays
+            // Sun rays outline only - 8 triangular rays (no center circle)
             for (i = [0 : 7]) {
                 rotate([0, 0, i * 45]) {
                     translate([size/2.2, 0, 0]) {
@@ -296,16 +292,71 @@ module sun_symbol_outlined(size) {
 }
 
 
-// Module for 4 light symbols with progress bar style filling
+// Module for 4 light symbols with progress bar style filling (left-to-right)
 module light_symbols(level, size, spacing) {
     if (show_light_symbols) {
         for (i = [0 : 3]) {
-            translate([i * spacing - 1.5 * spacing, 0, 0]) {
+            translate([i * spacing, 0, 0]) {
                 if (i < level) {
                     sun_symbol_filled(size);
                 } else {
                     sun_symbol_outlined(size);
                 }
+            }
+        }
+    }
+}
+
+// Cracked soil symbol - "water when dry" reminder
+module cracked_soil_symbol(size) {
+    if (show_dry_soil_symbol) {
+        linear_extrude(height = symbol_text_height) {
+            // Base circle for soil patch
+            circle(r = size/2.5, $fn = 32);
+            
+            // Crack lines - irregular pattern
+            // Main vertical crack
+            translate([0, -size/4, 0]) {
+                polygon([
+                    [-size/20, size/2],
+                    [size/20, size/2],
+                    [size/15, size/6],
+                    [-size/15, size/6]
+                ]);
+            }
+            
+            // Diagonal crack (top-left to bottom-right)
+            rotate([0, 0, 45]) {
+                translate([0, -size/6, 0]) {
+                    polygon([
+                        [-size/25, size/3],
+                        [size/25, size/3],
+                        [size/20, -size/8],
+                        [-size/20, -size/8]
+                    ]);
+                }
+            }
+            
+            // Diagonal crack (top-right to bottom-left)
+            rotate([0, 0, -45]) {
+                translate([0, -size/8, 0]) {
+                    polygon([
+                        [-size/25, size/4],
+                        [size/25, size/4],
+                        [size/20, -size/6],
+                        [-size/20, -size/6]
+                    ]);
+                }
+            }
+            
+            // Small horizontal crack
+            translate([size/8, size/8, 0]) {
+                polygon([
+                    [-size/6, -size/25],
+                    [-size/6, size/25],
+                    [size/12, size/20],
+                    [size/12, -size/20]
+                ]);
             }
         }
     }
@@ -483,18 +534,31 @@ module create_label(common_name, scientific, water_count, light_requirement, pla
 
     // Symbols with proper spacing (only if symbols are enabled)
     if (display_symbols) {
-        symbol_spacing = local_max_symbol_size * 1.1;
+        symbol_spacing = local_max_symbol_size * 1.4;
         
-        // Water drops (left side) - only if water symbols are enabled
+        // Water drops (left edge) - only if water symbols are enabled
         if (show_water_symbols) {
-            translate([-safe_symbol_offset, symbol_y_position, label_thickness]) {
+            // Position at left edge with margin from frame
+            water_left_x = -label_width/2 + frame_margin + absolute_margin + local_max_symbol_size/2;
+            // Adjust Y position so bottom of water drop aligns with bottom of sun
+            water_y_offset = -local_max_symbol_size * 0.3; // Move down to align bottoms
+            translate([water_left_x, symbol_y_position + water_y_offset, label_thickness]) {
                 water_drops(water_count, local_max_symbol_size, symbol_spacing);
             }
         }
 
-        // Light symbols (right side) - only if light symbols are enabled
+        // Cracked soil symbol (center) - "water when dry" reminder
+        if (show_dry_soil_symbol) {
+            translate([0, symbol_y_position, label_thickness]) {
+                cracked_soil_symbol(local_max_symbol_size);
+            }
+        }
+
+        // Light symbols (right edge) - only if light symbols are enabled
         if (show_light_symbols) {
-            translate([safe_symbol_offset, symbol_y_position, label_thickness]) {
+            // Position at right edge with margin from frame, accounting for 4 symbols
+            sun_right_x = label_width/2 - frame_margin - absolute_margin - (3 * symbol_spacing + local_max_symbol_size/2);
+            translate([sun_right_x, symbol_y_position, label_thickness]) {
                 light_symbols(light_requirement, local_max_symbol_size, symbol_spacing);
             }
         }
