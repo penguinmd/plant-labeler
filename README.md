@@ -66,108 +66,24 @@ plant-labeler/
 
 ---
 
-### 🤖 **AI-Powered Plant Identification (Future Enhancement)**
+### 🏭 **For Many Plants (Batch Generation)**
 
-**Automatically generate CSV data from plant photos using AI models.**
+**If you have lots of plants, you can generate all labels at once.**
 
-Transform your plant collection workflow with AI:
-1. **Take photos** of your plants
-2. **AI identifies** species and care requirements
-3. **Auto-generates CSV** ready for batch processing
-4. **Print all labels** automatically
+1. **Install Python Requirements** (one-time setup):
+   - Download and install [Python](https://www.python.org/downloads/) if you don't have it
+   - Open Terminal/Command Prompt and run: `pip install pandas`
 
-#### **Recommended AI Services & Models**
-
-**🌟 PlantNet API** (Free, Plant-Focused)
-- **Best for**: Accurate plant species identification
-- **API**: [plantnet.org](https://plantnet.org/en/)
-- **Strengths**: Specialized plant database, scientific names
-- **Usage**: Upload photo → Get species + scientific name
-
-**🌟 Google Vision AI + Gemini** (Comprehensive)
-- **Best for**: Plant ID + care requirement analysis
-- **API**: Google Cloud Vision + Gemini Pro
-- **Strengths**: Detailed care analysis, reasoning capabilities
-- **Usage**: Vision identifies → Gemini provides care details
-
-**🌟 OpenAI GPT-4 Vision** (Advanced Analysis)
-- **Best for**: Detailed plant analysis and care recommendations
-- **API**: OpenAI API with vision capabilities
-- **Strengths**: Contextual understanding, care reasoning
-- **Usage**: Upload photo → Get complete plant profile
-
-#### **AI Integration Workflow**
-
-```python
-# Example AI-powered CSV generation workflow
-python ai_plant_identifier.py --photos ./plant_photos/ --output plants_ai.csv
-python plant_label_generator.py --csv plants_ai.csv
-```
-
-**Proposed AI Script Features:**
-- **Batch photo processing**: Process entire folders of plant photos
-- **Species identification**: Common name, scientific name, family
-- **Care requirement analysis**: Water needs (1-4), light needs (1-4)
-- **Special characteristics**: Drought tolerance, toxicity, growth habits
-- **Confidence scoring**: AI confidence levels for manual review
-- **Manual override**: Edit AI suggestions before label generation
-- **Cost optimization**: Batch API calls, caching, local models
-
-#### **Sample AI-Generated CSV Output**
-
-```csv
-Nickname,Common Name,Scientific Name,Water,Light,Dry between Waterings,Spike,Holes,Width,Height,AI_Confidence
-,Monstera Deliciosa,Monstera deliciosa,2,2,FALSE,FALSE,TRUE,80,30,0.95
-,Snake Plant,Sansevieria trifasciata,1,2,TRUE,FALSE,FALSE,80,30,0.98
-,Fiddle Leaf Fig,Ficus lyrata,3,3,FALSE,FALSE,TRUE,80,30,0.92
-```
-
-#### **Implementation Suggestions**
-
-**Phase 1: Basic Plant ID**
-- Integrate PlantNet API for species identification
-- Generate basic CSV with names only
-- Manual care requirement entry
-
-**Phase 2: Care Analysis**
-- Add GPT-4 Vision for care requirement analysis
-- Automated water/light level determination
-- Confidence scoring and manual review interface
-
-**Phase 3: Advanced Features**
-- Local plant identification models (offline capability)
-- Plant health assessment from photos
-- Growth stage detection for care adjustments
-- Integration with plant care databases
-
-#### **Benefits of AI Integration**
-
-- **Massive time savings**: Identify 50+ plants in minutes
-- **Accuracy**: Reduce human error in species identification
-- **Consistency**: Standardized care recommendations
-- **Scalability**: Handle large plant collections effortlessly
-- **Learning**: Discover new information about your plants
-- **Accessibility**: No botanical expertise required
-
----
-
-### 🏭 **For Batch Generation (Advanced Users with Many Plants)**
-
-**Perfect if you have dozens of plants and want to automate the process.**
-
-1. **Install Requirements**:
-   ```bash
-   pip install pandas
-   ```
-   
-2. **Prepare Your Data**: Edit `plant_list.csv` with your plants (see CSV format below)
+2. **Edit the Plant List**:
+   - Open `plant_list.csv` in Excel, Google Sheets, or any spreadsheet program
+   - Add your plants following the format shown below
 
 3. **Generate All Labels**:
-   ```bash
-   python plant_label_generator.py --csv plant_list.csv --template enhanced_plant_labeler.scad
-   ```
+   - Open Terminal/Command Prompt in the project folder
+   - Run: `python plant_label_generator.py`
+   - Wait for it to finish (you'll see progress messages)
 
-4. **Find Your STL Files**: Check the `generated_labels/` folder
+4. **Get Your STL Files**: All labels will be in the `generated_labels/` folder, ready to print!
 
 ## 📊 CSV Format
 
