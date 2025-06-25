@@ -183,7 +183,22 @@ module spike(length, width, thickness, taper_ratio, gusset_size = 0) {
 }
 
 // Enhanced water drop module - filled version
-module water_drop_filled(size) {
+module water_drop_filled(size, base_thickness_ratio = 0.3) {
+    // Solid base under the symbol for better printing
+    linear_extrude(height = symbol_text_height * base_thickness_ratio) {
+        offset(r = 0.2) {
+            // Main teardrop body - completely filled
+            hull() {
+                // Bottom circle
+                circle(r = size/2.5, $fn = 32);
+                // Top point
+                translate([0, size * 0.6, 0]) {
+                    circle(r = size/8, $fn = 16);
+                }
+            }
+        }
+    }
+    // Main symbol on top
     linear_extrude(height = symbol_text_height) {
         // Main teardrop body - completely filled
         hull() {
@@ -198,7 +213,33 @@ module water_drop_filled(size) {
 }
 
 // Enhanced water drop module - outlined version
-module water_drop_outlined(size) {
+module water_drop_outlined(size, base_thickness_ratio = 0.3) {
+    // Solid base under the symbol for better printing
+    linear_extrude(height = symbol_text_height * base_thickness_ratio) {
+        offset(r = 0.2) {
+            // Main teardrop outline only
+            difference() {
+                hull() {
+                    // Bottom circle
+                    circle(r = size/2.5, $fn = 32);
+                    // Top point
+                    translate([0, size * 0.6, 0]) {
+                        circle(r = size/8, $fn = 16);
+                    }
+                }
+                // Remove inner area, leaving border
+                hull() {
+                    // Bottom circle (smaller)
+                    circle(r = size/2.5 - 0.8, $fn = 32);
+                    // Top point (smaller)
+                    translate([0, size * 0.6, 0]) {
+                        circle(r = max(size/8 - 0.4, 0.2), $fn = 16);
+                    }
+                }
+            }
+        }
+    }
+    // Main symbol on top
     linear_extrude(height = symbol_text_height) {
         // Main teardrop outline only
         difference() {
@@ -238,55 +279,90 @@ module water_drops(level, size, spacing) {
     }
 }
 
-// Enhanced sun symbol - filled version
-module sun_symbol_filled(size) {
+// Enhanced sun symbol - outlined version (7-pointed star outline)
+module sun_symbol_outlined(size, base_thickness_ratio = 0.3) {
     scale(0.7) {
-        linear_extrude(height = symbol_text_height) {
-            // Center circle
-            circle(r = size/3, $fn = 32);
-            
-            // Sun rays - 8 triangular rays
-            for (i = [0 : 7]) {
-                rotate([0, 0, i * 45]) {
-                    translate([size/2.2, 0, 0]) {
-                        polygon([
-                            [0, -size/8],
-                            [size/3, 0],
-                            [0, size/8]
-                        ]);
-                    }
+        // Solid base under the symbol for better printing
+        linear_extrude(height = symbol_text_height * base_thickness_ratio) {
+            offset(r = 0.2) {
+                // Create 7-pointed star outline
+                difference() {
+                    // Outer 7-pointed star
+                    polygon([
+                        for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                            let(
+                                angle = i * 25.714, // 360/14 = 25.714 degrees
+                                radius = (i % 2 == 0) ? size/1.8 : size/3.5 // Alternate between outer and inner radius
+                            )
+                            [radius * cos(angle), radius * sin(angle)]
+                    ]);
+                    // Inner star to create outline effect
+                    polygon([
+                        for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                            let(
+                                angle = i * 25.714, // 360/14 = 25.714 degrees
+                                radius = (i % 2 == 0) ? size/2.2 : size/4.5 // Smaller radii for inner outline
+                            )
+                            [radius * cos(angle), radius * sin(angle)]
+                    ]);
                 }
+            }
+        }
+        // Main symbol on top
+        linear_extrude(height = symbol_text_height) {
+            // Create 7-pointed star outline
+            difference() {
+                // Outer 7-pointed star
+                polygon([
+                    for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                        let(
+                            angle = i * 25.714, // 360/14 = 25.714 degrees
+                            radius = (i % 2 == 0) ? size/1.8 : size/3.5 // Alternate between outer and inner radius
+                        )
+                        [radius * cos(angle), radius * sin(angle)]
+                ]);
+                // Inner star to create outline effect
+                polygon([
+                    for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                        let(
+                            angle = i * 25.714, // 360/14 = 25.714 degrees
+                            radius = (i % 2 == 0) ? size/2.2 : size/4.5 // Smaller radii for inner outline
+                        )
+                        [radius * cos(angle), radius * sin(angle)]
+                ]);
             }
         }
     }
 }
 
-// Enhanced sun symbol - outlined version (rays only, no center circle)
-module sun_symbol_outlined(size) {
+// Enhanced sun symbol - filled version (7-pointed star filled)
+module sun_symbol_filled(size, base_thickness_ratio = 0.3) {
     scale(0.7) {
-        linear_extrude(height = symbol_text_height) {
-            // Sun rays outline only - 8 triangular rays (no center circle)
-            for (i = [0 : 7]) {
-                rotate([0, 0, i * 45]) {
-                    translate([size/2.2, 0, 0]) {
-                        difference() {
-                            polygon([
-                                [0, -size/8],
-                                [size/3, 0],
-                                [0, size/8]
-                            ]);
-                            // Inner triangle to create outline
-                            translate([size/12, 0, 0]) {
-                                polygon([
-                                    [0, -size/12],
-                                    [size/5, 0],
-                                    [0, size/12]
-                                ]);
-                            }
-                        }
-                    }
-                }
+        // Solid base under the symbol for better printing
+        linear_extrude(height = symbol_text_height * base_thickness_ratio) {
+            offset(r = 0.2) {
+                // Create filled 7-pointed star
+                polygon([
+                    for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                        let(
+                            angle = i * 25.714, // 360/14 = 25.714 degrees
+                            radius = (i % 2 == 0) ? size/1.8 : size/3.5 // Alternate between outer and inner radius
+                        )
+                        [radius * cos(angle), radius * sin(angle)]
+                ]);
             }
+        }
+        // Main symbol on top
+        linear_extrude(height = symbol_text_height) {
+            // Create filled 7-pointed star
+            polygon([
+                for (i = [0 : 13]) // 14 points total (7 outer + 7 inner)
+                    let(
+                        angle = i * 25.714, // 360/14 = 25.714 degrees
+                        radius = (i % 2 == 0) ? size/1.8 : size/3.5 // Alternate between outer and inner radius
+                    )
+                    [radius * cos(angle), radius * sin(angle)]
+            ]);
         }
     }
 }
@@ -308,8 +384,49 @@ module light_symbols(level, size, spacing) {
 }
 
 // Cactus symbol - "water sparingly/when dry" reminder (emoji style)
-module cactus_symbol(size) {
+module cactus_symbol(size, base_thickness_ratio = 0.3) {
     if (show_dry_soil_symbol) {
+        // Solid base under the symbol for better printing
+        linear_extrude(height = symbol_text_height * base_thickness_ratio) {
+            offset(r = 0.2) {
+                // Main vertical stem (tall rectangle with rounded ends)
+                hull() {
+                    translate([0, -size/3, 0]) {
+                        circle(r = size/8, $fn = 32);
+                    }
+                    translate([0, size/3, 0]) {
+                        circle(r = size/8, $fn = 32);
+                    }
+                }
+                
+                // Left arm (curves up from middle-left)
+                hull() {
+                    translate([-size/8, 0, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                    translate([-size/3, 0, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                    translate([-size/3, size/4, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                }
+                
+                // Right arm (curves up from middle-right)
+                hull() {
+                    translate([size/8, size/8, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                    translate([size/3, size/8, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                    translate([size/3, size/3, 0]) {
+                        circle(r = size/12, $fn = 32);
+                    }
+                }
+            }
+        }
+        // Main symbol on top
         linear_extrude(height = symbol_text_height) {
             // Main vertical stem (tall rectangle with rounded ends)
             hull() {
