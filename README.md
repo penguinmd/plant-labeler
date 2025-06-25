@@ -56,6 +56,10 @@ plant-labeler/
 3. **Generate Your Label**:
    - Press **F6** to render your custom label
    - Export as **STL** for 3D printing
+
+4. **3D Print Your Label**:
+   - Open the STL file in your slicer software (PrusaSlicer, Cura, etc.)
+   - Use recommended settings below
    - Print and enjoy!
 
 **That's it!** No programming knowledge required - just point, click, and customize.
@@ -244,23 +248,71 @@ python plant_label_generator.py --csv my_plants.csv --template my_template.scad 
 - **Enhanced Logging**: Detailed progress and error information with `--verbose`
 - **No Temporary Files**: Direct STL generation without intermediate file creation
 
-## 🖨️ 3D Printing Tips
+## 🖨️ 3D Printing Guide
 
-### Recommended Settings
-- **Layer Height**: 0.2mm for good detail
+### Basic Printing Settings
+- **Layer Height**: 0.2mm for good detail (0.15mm for finest text)
 - **Infill**: 15-20% (labels don't need to be solid)
 - **Supports**: Not needed - designed to print without supports
 - **Orientation**: Print with text facing up for best quality
+- **Print Speed**: 40-60mm/s for best text quality
 
 ### Material Recommendations
-- **PLA**: Easy to print, good for indoor use
+- **PLA**: Easy to print, good for indoor use, biodegradable
 - **PETG**: More durable, weather resistant for outdoor use
 - **ASA/ABS**: Best for outdoor durability and UV resistance
 
+### 🎨 Multi-Color Printing Options
+
+#### **Option 1: MMU/AMS Printers (Automatic)**
+If you have a multi-material printer (Prusa MMU, Bambu AMS, etc.):
+1. **Load your STL** into your slicer
+2. **Set layer change** at desired height (typically 1.5-2mm for raised text)
+3. **Assign colors**: Base color for label body, contrasting color for text/symbols
+4. **Print automatically** - the printer handles color changes
+
+#### **Option 2: Manual Filament Change (Any Printer)**
+For single-extruder printers:
+1. **Slice your model** normally
+2. **Add pause/color change** at specific layer:
+   - **PrusaSlicer**: Right-click layer → "Add color change"
+   - **Cura**: Extensions → Post Processing → "Pause at height"
+   - **Manual G-code**: Add `M600` (Marlin) or `M25` (pause) command
+3. **Calculate layer**: Text starts around layer 10-13 (at 0.2mm layers)
+4. **Print process**:
+   - Print base in first color
+   - Printer pauses automatically
+   - Change filament to contrasting color
+   - Resume printing for text/symbols
+
+#### **Pro Tips for Multi-Color Labels**
+- **High contrast works best**: Dark base + light text, or vice versa
+- **Popular combinations**:
+  - Green base + white text (classic plant theme)
+  - Black base + yellow text (high visibility)
+  - White base + green text (clean, modern look)
+- **Layer timing**: Text typically starts at 1.5-2mm height
+- **Purge tower**: Not needed for simple 2-color labels
+
+### Slicer Setup Guide
+1. **Import STL**: Open your label STL file in slicer software
+2. **Check orientation**: Text should face up (Z+ direction)
+3. **Set quality**: 0.2mm layers, 2-3 perimeters for durability
+4. **Add color change** (if desired): At layer where text begins
+5. **Generate G-code**: Review layer preview to confirm text placement
+6. **Print**: Follow your printer's standard workflow
+
+### Troubleshooting
+- **Text not visible**: Increase text height in OpenSCAD (try 2.0mm)
+- **Poor text quality**: Reduce print speed, increase layer resolution
+- **Warping**: Use heated bed, brim, or enclosure for ABS/ASA
+- **Color bleeding**: Ensure proper purging between color changes
+
 ### Post-Processing
-- Light sanding can improve text readability
-- Consider painting raised text with contrasting colors
-- Seal outdoor labels with appropriate coating
+- **Light sanding**: Can improve text readability if needed
+- **Manual painting**: Alternative to multi-color printing
+- **Outdoor sealing**: Apply UV-resistant coating for garden use
+- **Mounting**: Use spike for soil insertion or holes for hanging
 
 ## 📂 Examples
 
