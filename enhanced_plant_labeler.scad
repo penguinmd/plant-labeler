@@ -51,7 +51,7 @@ text_size_multiplier = 1.0; // [0.5:0.1:2.0]
 
 /* [Symbol Appearance] */
 // Symbol size multiplier (larger = easier to read when printed)
-symbol_size_multiplier = 1.5; // [0.5:0.25:3.0]
+symbol_size_multiplier = 1.0; // [0.5:0.25:3.0]
 
 /* [Border and Frame] */
 // Show raised frame border
