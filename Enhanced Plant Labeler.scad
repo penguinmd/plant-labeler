@@ -26,7 +26,7 @@ show_nickname = true;
 show_water_symbols = true;
 // Show light requirement symbols
 show_light_symbols = true;
-// Show "water when dry" reminder symbol
+// Show cactus "water sparingly" reminder symbol
 show_dry_soil_symbol = true;
 
 /* [Plant Care Requirements] */
@@ -307,56 +307,44 @@ module light_symbols(level, size, spacing) {
     }
 }
 
-// Cracked soil symbol - "water when dry" reminder
-module cracked_soil_symbol(size) {
+// Cactus symbol - "water sparingly/when dry" reminder (emoji style)
+module cactus_symbol(size) {
     if (show_dry_soil_symbol) {
         linear_extrude(height = symbol_text_height) {
-            // Base circle for soil patch
-            circle(r = size/2.5, $fn = 32);
-            
-            // Crack lines - irregular pattern
-            // Main vertical crack
-            translate([0, -size/4, 0]) {
-                polygon([
-                    [-size/20, size/2],
-                    [size/20, size/2],
-                    [size/15, size/6],
-                    [-size/15, size/6]
-                ]);
-            }
-            
-            // Diagonal crack (top-left to bottom-right)
-            rotate([0, 0, 45]) {
-                translate([0, -size/6, 0]) {
-                    polygon([
-                        [-size/25, size/3],
-                        [size/25, size/3],
-                        [size/20, -size/8],
-                        [-size/20, -size/8]
-                    ]);
+            // Main vertical stem (tall rectangle with rounded ends)
+            hull() {
+                translate([0, -size/3, 0]) {
+                    circle(r = size/8, $fn = 32);
+                }
+                translate([0, size/3, 0]) {
+                    circle(r = size/8, $fn = 32);
                 }
             }
             
-            // Diagonal crack (top-right to bottom-left)
-            rotate([0, 0, -45]) {
-                translate([0, -size/8, 0]) {
-                    polygon([
-                        [-size/25, size/4],
-                        [size/25, size/4],
-                        [size/20, -size/6],
-                        [-size/20, -size/6]
-                    ]);
+            // Left arm (curves up from middle-left)
+            hull() {
+                translate([-size/8, 0, 0]) {
+                    circle(r = size/12, $fn = 32);
+                }
+                translate([-size/3, 0, 0]) {
+                    circle(r = size/12, $fn = 32);
+                }
+                translate([-size/3, size/4, 0]) {
+                    circle(r = size/12, $fn = 32);
                 }
             }
             
-            // Small horizontal crack
-            translate([size/8, size/8, 0]) {
-                polygon([
-                    [-size/6, -size/25],
-                    [-size/6, size/25],
-                    [size/12, size/20],
-                    [size/12, -size/20]
-                ]);
+            // Right arm (curves up from middle-right)
+            hull() {
+                translate([size/8, size/8, 0]) {
+                    circle(r = size/12, $fn = 32);
+                }
+                translate([size/3, size/8, 0]) {
+                    circle(r = size/12, $fn = 32);
+                }
+                translate([size/3, size/3, 0]) {
+                    circle(r = size/12, $fn = 32);
+                }
             }
         }
     }
@@ -403,7 +391,7 @@ module create_label(common_name, scientific, water_count, light_requirement, pla
     has_nickname = show_nickname && len(str(plant_nickname)) > 0 && str(plant_nickname) != " " && str(plant_nickname) != "";
     display_common_name = show_plant_name && len(common_name) > 0;
     display_scientific = show_scientific_name && len(scientific) > 0;
-    display_symbols = show_water_symbols || show_light_symbols;
+    display_symbols = show_water_symbols || show_light_symbols || show_dry_soil_symbol;
     
     // Count active elements
     text_count = (has_nickname ? 1 : 0) + (display_common_name ? 1 : 0) + (display_scientific ? 1 : 0);
@@ -547,13 +535,6 @@ module create_label(common_name, scientific, water_count, light_requirement, pla
             }
         }
 
-        // Cracked soil symbol (center) - "water when dry" reminder
-        if (show_dry_soil_symbol) {
-            translate([0, symbol_y_position, label_thickness]) {
-                cracked_soil_symbol(local_max_symbol_size);
-            }
-        }
-
         // Light symbols (right edge) - only if light symbols are enabled
         if (show_light_symbols) {
             // Position at right edge with margin from frame, accounting for 4 symbols
@@ -561,6 +542,13 @@ module create_label(common_name, scientific, water_count, light_requirement, pla
             translate([sun_right_x, symbol_y_position, label_thickness]) {
                 light_symbols(light_requirement, local_max_symbol_size, symbol_spacing);
             }
+        }
+    }
+    
+    // Cactus symbol (center) - "water sparingly/when dry" reminder (independent of other symbols)
+    if (show_dry_soil_symbol) {
+        translate([0, symbol_y_position, label_thickness]) {
+            cactus_symbol(local_max_symbol_size);
         }
     }
     
