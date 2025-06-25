@@ -14,10 +14,23 @@ Usage:
     python plant_label_generator.py
 
 The script will:
-1. Read 'plant list.csv' 
+1. Read 'plant_list.csv'
 2. Generate individual .scad files for each plant
 3. Use OpenSCAD to render .stl files for 3D printing
 4. Clean up temporary .scad files (optional)
+
+CSV Format:
+The CSV file should contain the following columns:
+- Nickname: Plant nickname (optional, extracted from Common Name if not provided)
+- Common Name: Full common name of the plant
+- Scientific Name: Scientific/botanical name
+- Water: Water requirement level (1-4, where 1=low, 4=high)
+- Light: Light requirement level (1-4, where 1=low light, 4=full sun)
+- Dry between Waterings: TRUE/FALSE - whether to let soil dry between waterings
+- Spike: TRUE/FALSE - whether plant has spikes/thorns
+- Holes: TRUE/FALSE - whether to add drainage holes to label
+- Width: Label width in mm (optional, defaults to 80mm)
+- Height: Label height in mm (optional, defaults to 30mm)
 """
 
 import pandas as pd
@@ -28,7 +41,7 @@ import re
 from pathlib import Path
 
 class PlantLabelGenerator:
-    def __init__(self, csv_file="plant list.csv", template_file="Enhanced Plant Labeler.scad"):
+    def __init__(self, csv_file="plant_list.csv", template_file="Enhanced Plant Labeler.scad"):
         self.csv_file = csv_file
         self.template_file = template_file
         self.output_dir = "generated_labels"
@@ -37,32 +50,24 @@ class PlantLabelGenerator:
         # Create output directories
         Path(self.output_dir).mkdir(exist_ok=True)
         Path(self.temp_dir).mkdir(exist_ok=True)
+    
+    def convert_boolean_to_openscad(self, value):
+        """Convert TRUE/FALSE strings to OpenSCAD boolean values"""
+        if pd.isna(value):
+            return "false"
         
-    def count_emoji_symbols(self, symbol_text):
-        """Count water drops (💧) or light symbols (☀️/☁️) in emoji text"""
-        if pd.isna(symbol_text) or symbol_text == "":
-            return 1  # Default value
-        
-        # Count water drops
-        water_count = symbol_text.count('💧')
-        if water_count > 0:
-            return min(water_count, 3)  # Max 3 water drops
-        
-        # Count sun symbols for light
-        sun_count = symbol_text.count('☀️')
-        cloud_count = symbol_text.count('☁️')
-        
-        if sun_count >= 3:
-            return 1  # Full sun (3 suns)
-        elif sun_count >= 1 and cloud_count >= 1:
-            if symbol_text.index('☀️') < symbol_text.index('☁️'):
-                return 2  # Partial sun (sun + cloud)
-            else:
-                return 3  # Partial shade (cloud + sun)
-        elif cloud_count >= 1:
-            return 3  # Partial shade
+        value_str = str(value).strip().upper()
+        if value_str == "TRUE":
+            return "true"
+        elif value_str == "FALSE":
+            return "false"
         else:
-            return 1  # Default to full sun
+            # Handle numeric values (1/0) for backward compatibility
+            try:
+                numeric_val = float(value)
+                return "true" if numeric_val != 0 else "false"
+            except (ValueError, TypeError):
+                return "false"  # Default to false for invalid values
     
     def sanitize_filename(self, name):
         """Create a safe filename from plant name"""
@@ -103,12 +108,27 @@ class PlantLabelGenerator:
     
     def generate_scad_content(self, plant_data, template):
         """Generate OpenSCAD content for a specific plant"""
-        common_name, nickname = self.extract_nickname(plant_data['Common Name'])
+        # Handle nickname - use dedicated column if available, otherwise extract from common name
+        if 'Nickname' in plant_data and pd.notna(plant_data['Nickname']) and plant_data['Nickname'].strip():
+            nickname = plant_data['Nickname']
+            common_name = plant_data['Common Name']
+        else:
+            common_name, nickname = self.extract_nickname(plant_data['Common Name'])
+        
         scientific_name = plant_data['Scientific Name']
         
-        # Convert emoji symbols to numeric values
-        water_drops = self.count_emoji_symbols(plant_data['Water Symbol'])
-        light_type = self.count_emoji_symbols(plant_data['Light Symbol'])
+        # Get numeric values for water and light (1-4 scale)
+        water_drops = int(plant_data['Water']) if pd.notna(plant_data['Water']) else 2
+        light_type = int(plant_data['Light']) if pd.notna(plant_data['Light']) else 2
+        
+        # Get boolean values and convert to OpenSCAD format
+        dry_between_waterings = self.convert_boolean_to_openscad(plant_data['Dry between Waterings'])
+        spike = self.convert_boolean_to_openscad(plant_data['Spike'])
+        holes = self.convert_boolean_to_openscad(plant_data['Holes'])
+        
+        # Get dimensions with defaults
+        width = float(plant_data['Width']) if pd.notna(plant_data['Width']) else 80.0
+        height = float(plant_data['Height']) if pd.notna(plant_data['Height']) else 30.0
         
         # Replace individual parameters in the template
         modified_content = template
@@ -134,17 +154,59 @@ class PlantLabelGenerator:
             modified_content
         )
         
-        # Replace water_drops
+        # Replace water_drops (now supports 1-4 range)
         modified_content = re.sub(
             r'water_drops\s*=\s*\d+;',
             f'water_drops = {water_drops};',
             modified_content
         )
         
-        # Replace light_type
+        # Replace light_type (now supports 1-4 range)
         modified_content = re.sub(
             r'light_type\s*=\s*\d+;',
             f'light_type = {light_type};',
+            modified_content
+        )
+        
+        # Replace show_dry_soil_symbol
+        modified_content = re.sub(
+            r'show_dry_soil_symbol\s*=\s*(true|false);',
+            f'show_dry_soil_symbol = {dry_between_waterings};',
+            modified_content
+        )
+        
+        # Replace spike_enabled
+        modified_content = re.sub(
+            r'spike_enabled\s*=\s*(true|false);',
+            f'spike_enabled = {spike};',
+            modified_content
+        )
+        
+        # Replace enable_hanging_holes
+        modified_content = re.sub(
+            r'enable_hanging_holes\s*=\s*(true|false);',
+            f'enable_hanging_holes = {holes};',
+            modified_content
+        )
+        
+        # Replace label_width
+        modified_content = re.sub(
+            r'label_width\s*=\s*[\d.]+;',
+            f'label_width = {width};',
+            modified_content
+        )
+        
+        # Replace label_height
+        modified_content = re.sub(
+            r'label_height\s*=\s*[\d.]+;',
+            f'label_height = {height};',
+            modified_content
+        )
+        
+        # Replace symbol_size_multiplier to 1.0
+        modified_content = re.sub(
+            r'symbol_size_multiplier\s*=\s*[\d.]+;',
+            f'symbol_size_multiplier = 1.0;',
             modified_content
         )
         
@@ -218,12 +280,22 @@ class PlantLabelGenerator:
             print(f"Loaded {len(df)} plants from {self.csv_file}")
             
             # Verify required columns
-            required_cols = ['Common Name', 'Scientific Name', 'Water Symbol', 'Light Symbol']
+            required_cols = ['Common Name', 'Scientific Name', 'Water', 'Light',
+                           'Dry between Waterings', 'Spike', 'Holes']
             missing_cols = [col for col in required_cols if col not in df.columns]
             
             if missing_cols:
                 print(f"Error: Missing required columns: {missing_cols}")
+                print(f"Available columns: {list(df.columns)}")
                 return None
+            
+            # Optional columns with defaults
+            if 'Nickname' not in df.columns:
+                print("Note: 'Nickname' column not found - will extract from Common Name")
+            if 'Width' not in df.columns:
+                print("Note: 'Width' column not found - will use default 80mm")
+            if 'Height' not in df.columns:
+                print("Note: 'Height' column not found - will use default 30mm")
             
             return df
         except FileNotFoundError:
