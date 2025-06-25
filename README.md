@@ -16,10 +16,13 @@ A comprehensive system for creating custom 3D printable plant labels with intuit
 - **Optional Features**: Planting spike, hanging holes, decorative frame
 - **Print-Optimized**: Designed for reliable 3D printing with raised text and symbols
 
-### Automated Generation
-- **Batch Processing**: Generate multiple labels from CSV data
-- **Python Automation**: Automatically create STL files for 3D printing
-- **OpenSCAD Integration**: Uses OpenSCAD for precise 3D modeling
+### Automated Generation - Enhanced Version
+- **Robust Batch Processing**: Generate multiple labels from CSV data with comprehensive validation
+- **Command-Line Parameter Passing**: Uses OpenSCAD's `-D` flag for reliable parameter injection
+- **Data Validation**: Comprehensive error checking with detailed reporting
+- **Configurable Parameters**: Override any OpenSCAD parameter via command line
+- **Duplicate Detection**: Automatically identifies and handles duplicate entries
+- **Enhanced Error Handling**: Detailed logging and validation feedback
 
 ## 📁 Project Structure
 
@@ -143,17 +146,86 @@ enable_hanging_holes = false;   // Hanging holes
 show_dry_soil_symbol = true;    // Cactus symbol
 ```
 
-### Python Script Options
+### Python Script Options - Enhanced Version
+
+The enhanced script provides comprehensive command-line configuration:
 
 ```bash
 python plant_label_generator.py [options]
 
-Options:
-  --csv CSV_FILE              CSV file with plant data (default: plant_list.csv)
-  --template TEMPLATE_FILE    OpenSCAD template file (default: enhanced_plant_labeler.scad)
-  --output-dir OUTPUT_DIR     Output directory for STL files (default: generated_labels)
-  --keep-scad                 Keep temporary SCAD files for debugging
+# Basic Options
+--csv CSV_FILE              CSV file with plant data (default: plant_list.csv)
+--template TEMPLATE_FILE    OpenSCAD template file (default: enhanced_plant_labeler.scad)
+--output-dir OUTPUT_DIR     Output directory for STL files (default: generated_labels)
+--verbose, -v               Enable detailed logging and validation output
+
+# Label Dimensions
+--label-width WIDTH         Label width in mm (default: 80)
+--label-height HEIGHT       Label height in mm (default: 30)
+--label-thickness THICK     Label thickness in mm (default: 3)
+
+# Text Appearance
+--text-height HEIGHT        Height of raised text in mm (default: 1.5)
+--text-size MULTIPLIER      Text size multiplier (default: 1.0)
+--font FONT_NAME           Font for text rendering (default: Liberation Sans)
+
+# Symbol Appearance
+--symbol-size MULTIPLIER    Symbol size multiplier (default: 1.5)
+
+# Display Options
+--no-plant-name            Hide plant common name
+--no-scientific-name       Hide scientific name
+--no-nickname              Hide nickname
+--no-water-symbols         Hide water requirement symbols
+--no-light-symbols         Hide light requirement symbols
+
+# Frame and Border
+--no-frame                 Disable raised frame border
+--corner-radius RADIUS     Radius for rounded corners (default: 3)
+--frame-width WIDTH        Width of raised frame border (default: 1.5)
+--frame-height HEIGHT      Height of raised frame (default: 0.8)
+
+# Spike Options (overrides CSV settings)
+--no-spike                 Disable spike for all labels
+--spike-length LENGTH      Length of spike in mm (default: 40)
+--spike-width WIDTH        Width of spike at base in mm (default: 6)
+--spike-taper RATIO        Spike taper ratio (default: 0.7)
+--spike-position POS       Spike position: -1=left, 0=center, 1=right (default: 0)
+
+# Hanging Holes (overrides CSV settings)
+--no-holes                 Disable hanging holes for all labels
+--hole-diameter DIAMETER   Diameter of hanging holes in mm (default: 3)
+--hole-margin-x MARGIN     Horizontal distance from edge (default: 4)
+--hole-margin-y MARGIN     Vertical distance from edge (default: 4)
 ```
+
+### Usage Examples
+
+```bash
+# Basic usage with validation output
+python plant_label_generator.py --verbose
+
+# Custom dimensions and no spikes
+python plant_label_generator.py --label-width 100 --label-height 40 --no-spike
+
+# Large symbols for better visibility
+python plant_label_generator.py --symbol-size 2.0 --text-size 1.2
+
+# Minimal labels (text only, no symbols or features)
+python plant_label_generator.py --no-water-symbols --no-light-symbols --no-spike --no-holes --no-frame
+
+# Custom CSV and template files
+python plant_label_generator.py --csv my_plants.csv --template my_template.scad --output-dir my_labels
+```
+
+### Key Improvements
+
+- **Robust Parameter Passing**: Uses OpenSCAD's `-D` flag instead of file modification
+- **Comprehensive Validation**: Validates all CSV data with detailed error reporting
+- **Duplicate Detection**: Automatically identifies and removes duplicate entries
+- **Flexible Configuration**: Override any OpenSCAD parameter via command line
+- **Enhanced Logging**: Detailed progress and error information with `--verbose`
+- **No Temporary Files**: Direct STL generation without intermediate file creation
 
 ## 🖨️ 3D Printing Tips
 

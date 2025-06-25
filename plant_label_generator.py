@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Plant Label STL Generator
+Plant Label STL Generator - Enhanced Version
 
 This script reads a CSV file containing plant information and automatically generates
-STL files for 3D printable plant labels using OpenSCAD.
+STL files for 3D printable plant labels using OpenSCAD with robust parameter passing.
 
 Requirements:
 - Python 3.6+
@@ -11,13 +11,14 @@ Requirements:
 - OpenSCAD installed and accessible from command line
 
 Usage:
-    python plant_label_generator.py
+    python plant_label_generator.py [options]
 
-The script will:
-1. Read 'plant_list.csv'
-2. Generate individual .scad files for each plant
-3. Use OpenSCAD to render .stl files for 3D printing
-4. Clean up temporary .scad files (optional)
+Key Features:
+- Uses OpenSCAD's -D flag for robust parameter passing (no file modification)
+- Comprehensive data validation with detailed error reporting
+- Configurable OpenSCAD parameters via command line
+- Duplicate detection and handling
+- Enhanced error handling and logging
 
 CSV Format:
 The CSV file should contain the following columns:
@@ -38,57 +39,190 @@ import subprocess
 import os
 import sys
 import re
+import argparse
 from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
+import logging
+
+class DataValidationError(Exception):
+    """Custom exception for data validation errors"""
+    pass
 
 class PlantLabelGenerator:
-    def __init__(self, csv_file="plant_list.csv", template_file="Enhanced Plant Labeler.scad"):
+    def __init__(self, csv_file: str = "plant_list.csv", template_file: str = "enhanced_plant_labeler.scad"):
         self.csv_file = csv_file
         self.template_file = template_file
         self.output_dir = "generated_labels"
-        self.temp_dir = "temp_scad"
         
-        # Create output directories
+        # OpenSCAD parameter defaults (can be overridden via command line)
+        self.openscad_params = {
+            # Label dimensions
+            'label_width': 80,
+            'label_height': 30,
+            'label_thickness': 3,
+            
+            # Text appearance
+            'text_height': 1.5,
+            'text_size_multiplier': 1.0,
+            
+            # Symbol appearance
+            'symbol_size_multiplier': 1.5,
+            
+            # Display options
+            'show_plant_name': True,
+            'show_scientific_name': True,
+            'show_nickname': True,
+            'show_water_symbols': True,
+            'show_light_symbols': True,
+            
+            # Frame and border
+            'show_frame': True,
+            'corner_radius': 3,
+            'frame_width': 1.5,
+            'frame_height': 0.8,
+            
+            # Spike options
+            'spike_length': 40,
+            'spike_width': 6,
+            'spike_taper': 0.7,
+            'spike_position': 0,
+            'spike_base_radius': 1.5,
+            
+            # Hanging holes
+            'hole_diameter': 3,
+            'hole_margin_x': 4,
+            'hole_margin_y': 4,
+            
+            # Advanced
+            'font_name': 'Liberation Sans'
+        }
+        
+        # Create output directory
         Path(self.output_dir).mkdir(exist_ok=True)
-        Path(self.temp_dir).mkdir(exist_ok=True)
+        
+        # Setup logging
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+        self.logger = logging.getLogger(__name__)
     
-    def convert_boolean_to_openscad(self, value):
-        """Convert TRUE/FALSE strings to OpenSCAD boolean values"""
+    def validate_csv_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+        """
+        Comprehensive validation of CSV data with detailed error reporting.
+        Returns cleaned dataframe and list of validation warnings.
+        """
+        warnings = []
+        errors = []
+        
+        # Check required columns
+        required_cols = ['Common Name', 'Scientific Name', 'Water', 'Light',
+                        'Dry between Waterings', 'Spike', 'Holes']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            raise DataValidationError(f"Missing required columns: {missing_cols}")
+        
+        # Validate each row
+        valid_rows = []
+        for index, row in df.iterrows():
+            row_errors = []
+            
+            # Validate Common Name
+            if pd.isna(row['Common Name']) or not str(row['Common Name']).strip():
+                row_errors.append(f"Row {index+1}: Common Name is empty")
+            
+            # Validate Scientific Name
+            if pd.isna(row['Scientific Name']) or not str(row['Scientific Name']).strip():
+                row_errors.append(f"Row {index+1}: Scientific Name is empty")
+            
+            # Validate Water level (1-4)
+            try:
+                water_val = int(row['Water'])
+                if not 1 <= water_val <= 4:
+                    row_errors.append(f"Row {index+1}: Water level must be 1-4, got {water_val}")
+            except (ValueError, TypeError):
+                row_errors.append(f"Row {index+1}: Water level must be numeric (1-4), got '{row['Water']}'")
+            
+            # Validate Light level (1-4)
+            try:
+                light_val = int(row['Light'])
+                if not 1 <= light_val <= 4:
+                    row_errors.append(f"Row {index+1}: Light level must be 1-4, got {light_val}")
+            except (ValueError, TypeError):
+                row_errors.append(f"Row {index+1}: Light level must be numeric (1-4), got '{row['Light']}'")
+            
+            # Validate boolean fields
+            for bool_field in ['Dry between Waterings', 'Spike', 'Holes']:
+                if not self._is_valid_boolean(row[bool_field]):
+                    row_errors.append(f"Row {index+1}: {bool_field} must be TRUE/FALSE, got '{row[bool_field]}'")
+            
+            # Validate dimensions if provided
+            for dim_field in ['Width', 'Height']:
+                if dim_field in df.columns and pd.notna(row[dim_field]):
+                    try:
+                        dim_val = float(row[dim_field])
+                        if dim_val <= 0:
+                            row_errors.append(f"Row {index+1}: {dim_field} must be positive, got {dim_val}")
+                        elif dim_val > 200:  # Reasonable upper limit
+                            warnings.append(f"Row {index+1}: {dim_field} is very large ({dim_val}mm)")
+                    except (ValueError, TypeError):
+                        row_errors.append(f"Row {index+1}: {dim_field} must be numeric, got '{row[dim_field]}'")
+            
+            if row_errors:
+                errors.extend(row_errors)
+            else:
+                valid_rows.append(row)
+        
+        if errors:
+            raise DataValidationError(f"Data validation failed:\n" + "\n".join(errors))
+        
+        # Check for duplicates
+        if len(valid_rows) > 0:
+            clean_df = pd.DataFrame(valid_rows)
+            duplicates = clean_df.duplicated(subset=['Common Name', 'Scientific Name'], keep=False)
+            if duplicates.any():
+                duplicate_plants = clean_df[duplicates]['Common Name'].tolist()
+                warnings.append(f"Found duplicate entries: {set(duplicate_plants)}")
+                # Remove duplicates, keeping first occurrence
+                clean_df = clean_df.drop_duplicates(subset=['Common Name', 'Scientific Name'], keep='first')
+                warnings.append(f"Removed {duplicates.sum() - len(set(duplicate_plants))} duplicate rows")
+        else:
+            clean_df = pd.DataFrame()
+        
+        return clean_df, warnings
+    
+    def _is_valid_boolean(self, value: Any) -> bool:
+        """Check if a value is a valid boolean representation"""
+        if pd.isna(value):
+            return True  # Will be converted to False
+        
+        value_str = str(value).strip().upper()
+        return value_str in ['TRUE', 'FALSE', '1', '0', 'YES', 'NO']
+    
+    def convert_boolean_to_openscad(self, value: Any) -> str:
+        """Convert various boolean representations to OpenSCAD boolean values"""
         if pd.isna(value):
             return "false"
         
         value_str = str(value).strip().upper()
-        if value_str == "TRUE":
+        if value_str in ['TRUE', '1', 'YES']:
             return "true"
-        elif value_str == "FALSE":
+        elif value_str in ['FALSE', '0', 'NO']:
             return "false"
         else:
-            # Handle numeric values (1/0) for backward compatibility
+            # Handle numeric values for backward compatibility
             try:
                 numeric_val = float(value)
                 return "true" if numeric_val != 0 else "false"
             except (ValueError, TypeError):
                 return "false"  # Default to false for invalid values
     
-    def sanitize_filename(self, name):
+    def sanitize_filename(self, name: str) -> str:
         """Create a safe filename from plant name"""
         # Remove special characters and replace spaces with underscores
         filename = re.sub(r'[^\w\s-]', '', name)
         filename = re.sub(r'[-\s]+', '_', filename)
         return filename.strip('_')
     
-    def load_template(self):
-        """Load the OpenSCAD template file"""
-        try:
-            with open(self.template_file, 'r', encoding='utf-8') as f:
-                return f.read()
-        except FileNotFoundError:
-            print(f"Error: Template file '{self.template_file}' not found!")
-            sys.exit(1)
-        except Exception as e:
-            print(f"Error reading template file: {e}")
-            sys.exit(1)
-    
-    def extract_nickname(self, common_name):
+    def extract_nickname(self, common_name: str) -> Tuple[str, str]:
         """Extract nickname from common name if it contains quotes"""
         # Look for text in single quotes like "Maranta 'Lemon Lime'"
         quote_match = re.search(r"'([^']*)'", common_name)
@@ -106,8 +240,11 @@ class PlantLabelGenerator:
         
         return common_name, ""
     
-    def generate_scad_content(self, plant_data, template):
-        """Generate OpenSCAD content for a specific plant"""
+    def build_openscad_command(self, plant_data: pd.Series, output_file: str) -> List[str]:
+        """
+        Build OpenSCAD command using -D flags for parameter passing.
+        This eliminates the need to modify the .scad file.
+        """
         # Handle nickname - use dedicated column if available, otherwise extract from common name
         if 'Nickname' in plant_data and pd.notna(plant_data['Nickname']) and plant_data['Nickname'].strip():
             nickname = plant_data['Nickname']
@@ -123,269 +260,318 @@ class PlantLabelGenerator:
         
         # Get boolean values and convert to OpenSCAD format
         dry_between_waterings = self.convert_boolean_to_openscad(plant_data['Dry between Waterings'])
-        spike = self.convert_boolean_to_openscad(plant_data['Spike'])
-        holes = self.convert_boolean_to_openscad(plant_data['Holes'])
+        spike_enabled = self.convert_boolean_to_openscad(plant_data['Spike'])
+        enable_hanging_holes = self.convert_boolean_to_openscad(plant_data['Holes'])
         
         # Get dimensions with defaults
-        width = float(plant_data['Width']) if pd.notna(plant_data['Width']) else 80.0
-        height = float(plant_data['Height']) if pd.notna(plant_data['Height']) else 30.0
+        label_width = float(plant_data['Width']) if pd.notna(plant_data['Width']) else self.openscad_params['label_width']
+        label_height = float(plant_data['Height']) if pd.notna(plant_data['Height']) else self.openscad_params['label_height']
         
-        # Replace individual parameters in the template
-        modified_content = template
+        # Build command with -D parameters
+        cmd = ["openscad", "-o", output_file]
         
-        # Replace plant_name
-        modified_content = re.sub(
-            r'plant_name\s*=\s*"[^"]*";',
-            f'plant_name = "{common_name}";',
-            modified_content
-        )
+        # Plant information parameters
+        cmd.extend(["-D", f'plant_name="{common_name}"'])
+        cmd.extend(["-D", f'scientific_name="{scientific_name}"'])
+        cmd.extend(["-D", f'nickname="{nickname}"'])
         
-        # Replace scientific_name
-        modified_content = re.sub(
-            r'scientific_name\s*=\s*"[^"]*";',
-            f'scientific_name = "{scientific_name}";',
-            modified_content
-        )
+        # Plant care parameters
+        cmd.extend(["-D", f"water_drops={water_drops}"])
+        cmd.extend(["-D", f"light_type={light_type}"])
+        cmd.extend(["-D", f"show_dry_soil_symbol={dry_between_waterings}"])
         
-        # Replace nickname
-        modified_content = re.sub(
-            r'nickname\s*=\s*"[^"]*";',
-            f'nickname = "{nickname}";',
-            modified_content
-        )
+        # Label configuration parameters
+        cmd.extend(["-D", f"spike_enabled={spike_enabled}"])
+        cmd.extend(["-D", f"enable_hanging_holes={enable_hanging_holes}"])
+        cmd.extend(["-D", f"label_width={label_width}"])
+        cmd.extend(["-D", f"label_height={label_height}"])
         
-        # Replace water_drops (now supports 1-4 range)
-        modified_content = re.sub(
-            r'water_drops\s*=\s*\d+;',
-            f'water_drops = {water_drops};',
-            modified_content
-        )
+        # Add all configurable OpenSCAD parameters
+        for param, value in self.openscad_params.items():
+            if param not in ['label_width', 'label_height']:  # Already handled above
+                if isinstance(value, bool):
+                    cmd.extend(["-D", f"{param}={'true' if value else 'false'}"])
+                elif isinstance(value, str):
+                    cmd.extend(["-D", f'{param}="{value}"'])
+                else:
+                    cmd.extend(["-D", f"{param}={value}"])
         
-        # Replace light_type (now supports 1-4 range)
-        modified_content = re.sub(
-            r'light_type\s*=\s*\d+;',
-            f'light_type = {light_type};',
-            modified_content
-        )
+        # Add the template file
+        cmd.append(self.template_file)
         
-        # Replace show_dry_soil_symbol
-        modified_content = re.sub(
-            r'show_dry_soil_symbol\s*=\s*(true|false);',
-            f'show_dry_soil_symbol = {dry_between_waterings};',
-            modified_content
-        )
-        
-        # Replace spike_enabled
-        modified_content = re.sub(
-            r'spike_enabled\s*=\s*(true|false);',
-            f'spike_enabled = {spike};',
-            modified_content
-        )
-        
-        # Replace enable_hanging_holes
-        modified_content = re.sub(
-            r'enable_hanging_holes\s*=\s*(true|false);',
-            f'enable_hanging_holes = {holes};',
-            modified_content
-        )
-        
-        # Replace label_width
-        modified_content = re.sub(
-            r'label_width\s*=\s*[\d.]+;',
-            f'label_width = {width};',
-            modified_content
-        )
-        
-        # Replace label_height
-        modified_content = re.sub(
-            r'label_height\s*=\s*[\d.]+;',
-            f'label_height = {height};',
-            modified_content
-        )
-        
-        # Replace symbol_size_multiplier to 1.0
-        modified_content = re.sub(
-            r'symbol_size_multiplier\s*=\s*[\d.]+;',
-            f'symbol_size_multiplier = 1.0;',
-            modified_content
-        )
-        
-        return modified_content
+        return cmd
     
-    def generate_scad_file(self, plant_data, template):
-        """Generate a .scad file for a specific plant"""
-        filename = self.sanitize_filename(plant_data['Common Name'])
-        scad_filename = f"{self.temp_dir}/{filename}.scad"
-        
-        content = self.generate_scad_content(plant_data, template)
-        
-        try:
-            with open(scad_filename, 'w', encoding='utf-8') as f:
-                f.write(content)
-            return scad_filename, filename
-        except Exception as e:
-            print(f"Error writing SCAD file for {plant_data['Common Name']}: {e}")
-            return None, None
-    
-    def render_stl(self, scad_file, output_filename):
-        """Use OpenSCAD to render STL file"""
+    def render_stl(self, plant_data: pd.Series, output_filename: str) -> bool:
+        """Use OpenSCAD to render STL file using command-line parameters"""
         stl_output = f"{self.output_dir}/{output_filename}.stl"
         
         try:
-            # OpenSCAD command to render STL
-            cmd = ["openscad", "-o", stl_output, scad_file]
+            # Build OpenSCAD command with -D parameters
+            cmd = self.build_openscad_command(plant_data, stl_output)
             
-            print(f"Rendering {output_filename}.stl...")
+            self.logger.info(f"Rendering {output_filename}.stl...")
+            self.logger.debug(f"OpenSCAD command: {' '.join(cmd)}")
+            
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             
             if result.returncode == 0:
-                print(f"✓ Successfully created {stl_output}")
+                self.logger.info(f"✓ Successfully created {stl_output}")
                 return True
             else:
-                print(f"✗ Failed to render {output_filename}.stl")
-                print(f"Error: {result.stderr}")
+                self.logger.error(f"✗ Failed to render {output_filename}.stl")
+                self.logger.error(f"Error: {result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
-            print(f"✗ Timeout rendering {output_filename}.stl")
+            self.logger.error(f"✗ Timeout rendering {output_filename}.stl")
             return False
         except FileNotFoundError:
-            print("✗ OpenSCAD not found! Please install OpenSCAD and make sure it's in your PATH.")
-            print("Download from: https://openscad.org/downloads.html")
+            self.logger.error("✗ OpenSCAD not found! Please install OpenSCAD and make sure it's in your PATH.")
+            self.logger.error("Download from: https://openscad.org/downloads.html")
             return False
         except Exception as e:
-            print(f"✗ Error rendering {output_filename}.stl: {e}")
+            self.logger.error(f"✗ Error rendering {output_filename}.stl: {e}")
             return False
     
-    def check_openscad(self):
+    def check_openscad(self) -> bool:
         """Check if OpenSCAD is available"""
         try:
             result = subprocess.run(["openscad", "--version"], 
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
-                print(f"OpenSCAD found: {result.stdout.strip()}")
+                self.logger.info(f"OpenSCAD found: {result.stdout.strip()}")
                 return True
         except:
             pass
         
-        print("⚠️  OpenSCAD not found in PATH!")
-        print("Please install OpenSCAD from: https://openscad.org/downloads.html")
-        print("Make sure it's accessible from command line.")
+        self.logger.error("⚠️  OpenSCAD not found in PATH!")
+        self.logger.error("Please install OpenSCAD from: https://openscad.org/downloads.html")
+        self.logger.error("Make sure it's accessible from command line.")
         return False
     
-    def load_plant_data(self):
-        """Load plant data from CSV file"""
+    def check_template_file(self) -> bool:
+        """Check if the OpenSCAD template file exists"""
+        if not Path(self.template_file).exists():
+            self.logger.error(f"Template file '{self.template_file}' not found!")
+            return False
+        return True
+    
+    def load_plant_data(self) -> Optional[pd.DataFrame]:
+        """Load and validate plant data from CSV file"""
         try:
             df = pd.read_csv(self.csv_file)
-            print(f"Loaded {len(df)} plants from {self.csv_file}")
+            self.logger.info(f"Loaded {len(df)} plants from {self.csv_file}")
             
-            # Verify required columns
-            required_cols = ['Common Name', 'Scientific Name', 'Water', 'Light',
-                           'Dry between Waterings', 'Spike', 'Holes']
-            missing_cols = [col for col in required_cols if col not in df.columns]
+            # Validate data
+            clean_df, warnings = self.validate_csv_data(df)
             
-            if missing_cols:
-                print(f"Error: Missing required columns: {missing_cols}")
-                print(f"Available columns: {list(df.columns)}")
-                return None
+            # Report warnings
+            for warning in warnings:
+                self.logger.warning(warning)
             
-            # Optional columns with defaults
-            if 'Nickname' not in df.columns:
-                print("Note: 'Nickname' column not found - will extract from Common Name")
-            if 'Width' not in df.columns:
-                print("Note: 'Width' column not found - will use default 80mm")
-            if 'Height' not in df.columns:
-                print("Note: 'Height' column not found - will use default 30mm")
+            if len(clean_df) < len(df):
+                self.logger.info(f"After validation: {len(clean_df)} valid plants")
             
-            return df
+            return clean_df
+            
         except FileNotFoundError:
-            print(f"Error: CSV file '{self.csv_file}' not found!")
+            self.logger.error(f"CSV file '{self.csv_file}' not found!")
+            return None
+        except DataValidationError as e:
+            self.logger.error(f"Data validation failed: {e}")
             return None
         except Exception as e:
-            print(f"Error reading CSV file: {e}")
+            self.logger.error(f"Error reading CSV file: {e}")
             return None
     
-    def cleanup_temp_files(self, keep_scad=False):
-        """Clean up temporary SCAD files"""
-        if not keep_scad:
-            try:
-                import shutil
-                shutil.rmtree(self.temp_dir)
-                print(f"Cleaned up temporary files in {self.temp_dir}")
-            except Exception as e:
-                print(f"Warning: Could not clean up temp files: {e}")
-    
-    def generate_all_labels(self, keep_scad_files=False):
+    def generate_all_labels(self) -> bool:
         """Main method to generate all plant labels"""
-        print("🌱 Plant Label STL Generator")
-        print("=" * 50)
+        print("🌱 Plant Label STL Generator - Enhanced Version")
+        print("=" * 60)
         
         # Check dependencies
         if not self.check_openscad():
             return False
         
-        # Load data
-        df = self.load_plant_data()
-        if df is None:
+        if not self.check_template_file():
             return False
         
-        template = self.load_template()
+        # Load and validate data
+        df = self.load_plant_data()
+        if df is None or len(df) == 0:
+            self.logger.error("No valid plant data to process")
+            return False
         
         # Process each plant
         successful = 0
         failed = 0
         
         print(f"\nGenerating labels for {len(df)} plants...")
-        print("-" * 50)
+        print("-" * 60)
         
         for index, plant in df.iterrows():
             plant_name = plant['Common Name']
             print(f"\n[{index+1}/{len(df)}] Processing: {plant_name}")
             
-            # Generate SCAD file
-            scad_file, filename = self.generate_scad_file(plant, template)
-            if scad_file is None:
-                failed += 1
-                continue
+            # Generate filename
+            filename = self.sanitize_filename(plant_name)
             
-            # Render STL
-            if self.render_stl(scad_file, filename):
+            # Render STL directly using command-line parameters
+            if self.render_stl(plant, filename):
                 successful += 1
             else:
                 failed += 1
         
         # Summary
-        print("\n" + "=" * 50)
+        print("\n" + "=" * 60)
         print(f"🎉 Generation complete!")
         print(f"✓ Successful: {successful}")
         print(f"✗ Failed: {failed}")
         print(f"📁 STL files saved to: {self.output_dir}/")
         
-        if keep_scad_files:
-            print(f"📁 SCAD files saved to: {self.temp_dir}/")
-        else:
-            self.cleanup_temp_files()
-        
         return successful > 0
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create and configure argument parser with all OpenSCAD parameters"""
+    parser = argparse.ArgumentParser(
+        description='Generate 3D printable plant labels from CSV data',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python plant_label_generator.py
+  python plant_label_generator.py --csv my_plants.csv --template my_template.scad
+  python plant_label_generator.py --label-width 100 --label-height 40
+  python plant_label_generator.py --no-spike --no-holes --symbol-size 2.0
+        """
+    )
+    
+    # File options
+    parser.add_argument('--csv', default='plant_list.csv', 
+                       help='CSV file with plant data (default: plant_list.csv)')
+    parser.add_argument('--template', default='enhanced_plant_labeler.scad', 
+                       help='OpenSCAD template file (default: enhanced_plant_labeler.scad)')
+    parser.add_argument('--output-dir', default='generated_labels', 
+                       help='Output directory for STL files (default: generated_labels)')
+    
+    # Label dimensions
+    parser.add_argument('--label-width', type=float, default=80,
+                       help='Label width in mm (default: 80)')
+    parser.add_argument('--label-height', type=float, default=30,
+                       help='Label height in mm (default: 30)')
+    parser.add_argument('--label-thickness', type=float, default=3,
+                       help='Label thickness in mm (default: 3)')
+    
+    # Text appearance
+    parser.add_argument('--text-height', type=float, default=1.5,
+                       help='Height of raised text in mm (default: 1.5)')
+    parser.add_argument('--text-size', type=float, default=1.0,
+                       help='Text size multiplier (default: 1.0)')
+    
+    # Symbol appearance
+    parser.add_argument('--symbol-size', type=float, default=1.5,
+                       help='Symbol size multiplier (default: 1.5)')
+    
+    # Display options
+    parser.add_argument('--no-plant-name', action='store_true',
+                       help='Hide plant common name')
+    parser.add_argument('--no-scientific-name', action='store_true',
+                       help='Hide scientific name')
+    parser.add_argument('--no-nickname', action='store_true',
+                       help='Hide nickname')
+    parser.add_argument('--no-water-symbols', action='store_true',
+                       help='Hide water requirement symbols')
+    parser.add_argument('--no-light-symbols', action='store_true',
+                       help='Hide light requirement symbols')
+    
+    # Frame and border
+    parser.add_argument('--no-frame', action='store_true',
+                       help='Disable raised frame border')
+    parser.add_argument('--corner-radius', type=float, default=3,
+                       help='Radius for rounded corners (default: 3)')
+    parser.add_argument('--frame-width', type=float, default=1.5,
+                       help='Width of raised frame border (default: 1.5)')
+    parser.add_argument('--frame-height', type=float, default=0.8,
+                       help='Height of raised frame (default: 0.8)')
+    
+    # Spike options
+    parser.add_argument('--no-spike', action='store_true',
+                       help='Disable spike for all labels (overrides CSV)')
+    parser.add_argument('--spike-length', type=float, default=40,
+                       help='Length of spike in mm (default: 40)')
+    parser.add_argument('--spike-width', type=float, default=6,
+                       help='Width of spike at base in mm (default: 6)')
+    parser.add_argument('--spike-taper', type=float, default=0.7,
+                       help='Spike taper ratio (default: 0.7)')
+    parser.add_argument('--spike-position', type=float, default=0,
+                       help='Spike position along bottom edge -1=left, 0=center, 1=right (default: 0)')
+    
+    # Hanging holes
+    parser.add_argument('--no-holes', action='store_true',
+                       help='Disable hanging holes for all labels (overrides CSV)')
+    parser.add_argument('--hole-diameter', type=float, default=3,
+                       help='Diameter of hanging holes in mm (default: 3)')
+    parser.add_argument('--hole-margin-x', type=float, default=4,
+                       help='Horizontal distance from edge for holes (default: 4)')
+    parser.add_argument('--hole-margin-y', type=float, default=4,
+                       help='Vertical distance from edge for holes (default: 4)')
+    
+    # Advanced options
+    parser.add_argument('--font', default='Liberation Sans',
+                       help='Font for text rendering (default: Liberation Sans)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Enable verbose logging')
+    
+    return parser
 
 def main():
     """Main entry point"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Generate 3D printable plant labels from CSV data')
-    parser.add_argument('--csv', default='plant list.csv', help='CSV file with plant data')
-    parser.add_argument('--template', default='Enhanced Plant Labeler.scad', help='OpenSCAD template file')
-    parser.add_argument('--keep-scad', action='store_true', help='Keep temporary SCAD files')
-    parser.add_argument('--output-dir', default='generated_labels', help='Output directory for STL files')
-    
+    parser = create_argument_parser()
     args = parser.parse_args()
+    
+    # Setup logging level
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
     
     # Create generator
     generator = PlantLabelGenerator(args.csv, args.template)
     generator.output_dir = args.output_dir
     
+    # Update OpenSCAD parameters from command line arguments
+    generator.openscad_params.update({
+        'label_width': args.label_width,
+        'label_height': args.label_height,
+        'label_thickness': args.label_thickness,
+        'text_height': args.text_height,
+        'text_size_multiplier': args.text_size,
+        'symbol_size_multiplier': args.symbol_size,
+        'show_plant_name': not args.no_plant_name,
+        'show_scientific_name': not args.no_scientific_name,
+        'show_nickname': not args.no_nickname,
+        'show_water_symbols': not args.no_water_symbols,
+        'show_light_symbols': not args.no_light_symbols,
+        'show_frame': not args.no_frame,
+        'corner_radius': args.corner_radius,
+        'frame_width': args.frame_width,
+        'frame_height': args.frame_height,
+        'spike_length': args.spike_length,
+        'spike_width': args.spike_width,
+        'spike_taper': args.spike_taper,
+        'spike_position': args.spike_position,
+        'spike_base_radius': 1.5,  # Keep default
+        'hole_diameter': args.hole_diameter,
+        'hole_margin_x': args.hole_margin_x,
+        'hole_margin_y': args.hole_margin_y,
+        'font_name': args.font
+    })
+    
+    # Handle global overrides for spike and holes
+    if hasattr(args, 'force_no_spike'):
+        generator.force_no_spike = args.no_spike
+    if hasattr(args, 'force_no_holes'):
+        generator.force_no_holes = args.no_holes
+    
     # Generate all labels
-    success = generator.generate_all_labels(args.keep_scad)
+    success = generator.generate_all_labels()
     
     if success:
         print(f"\n🎯 Ready for 3D printing! Check the '{generator.output_dir}' folder.")
