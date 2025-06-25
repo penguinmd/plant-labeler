@@ -66,7 +66,7 @@ class PlantLabelGenerator:
             'text_size_multiplier': 1.0,
             
             # Symbol appearance
-            'symbol_size_multiplier': 1.5,
+            'symbol_size_multiplier': 1.0,
             
             # Display options
             'show_plant_name': True,
@@ -468,8 +468,8 @@ Examples:
                        help='Text size multiplier (default: 1.0)')
     
     # Symbol appearance
-    parser.add_argument('--symbol-size', type=float, default=1.5,
-                       help='Symbol size multiplier (default: 1.5)')
+    parser.add_argument('--symbol-size', type=float, default=1.0,
+                       help='Symbol size multiplier (default: 1.0)')
     
     # Display options
     parser.add_argument('--no-plant-name', action='store_true',

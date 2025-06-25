@@ -170,7 +170,7 @@ python plant_label_generator.py [options]
 --font FONT_NAME           Font for text rendering (default: Liberation Sans)
 
 # Symbol Appearance
---symbol-size MULTIPLIER    Symbol size multiplier (default: 1.5)
+--symbol-size MULTIPLIER    Symbol size multiplier (default: 1.0)
 
 # Display Options
 --no-plant-name            Hide plant common name
