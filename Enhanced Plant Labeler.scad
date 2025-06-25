@@ -28,10 +28,10 @@ show_water_symbols = true;
 show_light_symbols = true;
 
 /* [Plant Care Requirements] */
-// Water requirement: 1 = low, 2 = medium, 3 = high
-water_drops = 2; // [1:3]
-// Light requirement: 1 = Full sun, 2 = Partial sun, 3 = Partial shade
-light_type = 2; // [1:3]
+// Water requirement: 1 = low, 2 = medium, 3 = high, 4 = very high
+water_drops = 2; // [1:4]
+// Light requirement: 1 = low light, 2 = medium light, 3 = bright light, 4 = full sun
+light_type = 2; // [1:4]
 
 /* [Label Size] */
 // Width of the label in mm
@@ -180,44 +180,70 @@ module spike(length, width, thickness, taper_ratio, gusset_size = 0) {
     }
 }
 
-// Enhanced water drop module with larger size and better definition
-module water_drop(size) {
+// Enhanced water drop module - filled version
+module water_drop_filled(size) {
     linear_extrude(height = symbol_text_height) {
-        // Main teardrop body - made larger and more defined
+        // Main teardrop body - completely filled
         hull() {
-            // Bottom circle (larger)
+            // Bottom circle
             circle(r = size/2.5, $fn = 32);
-            // Top point (more pronounced)
+            // Top point
             translate([0, size * 0.6, 0]) {
                 circle(r = size/8, $fn = 16);
             }
         }
-        // Add definition with inner details
-        translate([0, size/6, 0]) {
-            circle(r = size/4, $fn = 32);
-        }
     }
 }
 
-// Module for multiple water drops with better spacing
-module water_drops(count, size, spacing) {
-    if (show_water_symbols) {
-        for (i = [0 : count-1]) {
-            translate([i * spacing - (count-1) * spacing/2, 0, 0]) {
-                water_drop(size);
+// Enhanced water drop module - outlined version
+module water_drop_outlined(size) {
+    linear_extrude(height = symbol_text_height) {
+        // Main teardrop outline only
+        difference() {
+            hull() {
+                // Bottom circle
+                circle(r = size/2.5, $fn = 32);
+                // Top point
+                translate([0, size * 0.6, 0]) {
+                    circle(r = size/8, $fn = 16);
+                }
+            }
+            // Remove inner area, leaving border
+            hull() {
+                // Bottom circle (smaller)
+                circle(r = size/2.5 - 0.8, $fn = 32);
+                // Top point (smaller)
+                translate([0, size * 0.6, 0]) {
+                    circle(r = max(size/8 - 0.4, 0.2), $fn = 16);
+                }
             }
         }
     }
 }
 
-// Enhanced sun symbol with more prominent rays
-module sun_symbol(size) {
+// Module for 4 water drops with progress bar style filling
+module water_drops(level, size, spacing) {
+    if (show_water_symbols) {
+        for (i = [0 : 3]) {
+            translate([i * spacing - 1.5 * spacing, 0, 0]) {
+                if (i < level) {
+                    water_drop_filled(size);
+                } else {
+                    water_drop_outlined(size);
+                }
+            }
+        }
+    }
+}
+
+// Enhanced sun symbol - filled version
+module sun_symbol_filled(size) {
     scale(0.7) {
         linear_extrude(height = symbol_text_height) {
-            // Center circle (larger)
+            // Center circle
             circle(r = size/3, $fn = 32);
             
-            // Sun rays - 8 larger triangular rays
+            // Sun rays - 8 triangular rays
             for (i = [0 : 7]) {
                 rotate([0, 0, i * 45]) {
                     translate([size/2.2, 0, 0]) {
@@ -229,59 +255,57 @@ module sun_symbol(size) {
                     }
                 }
             }
-            
-            // Add inner ring for definition
+        }
+    }
+}
+
+// Enhanced sun symbol - outlined version
+module sun_symbol_outlined(size) {
+    scale(0.7) {
+        linear_extrude(height = symbol_text_height) {
+            // Center circle outline
             difference() {
-                circle(r = size/3.5, $fn = 32);
-                circle(r = size/4.5, $fn = 32);
+                circle(r = size/3, $fn = 32);
+                circle(r = size/3 - 0.6, $fn = 32);
             }
-        }
-    }
-}
-
-// Enhanced cloud symbol with better definition
-module cloud_symbol(size) {
-    linear_extrude(height = symbol_text_height) {
-        // Cloud made of overlapping circles (larger and more defined)
-        circle(r = size/3, $fn = 32);  // Main body
-        translate([size/2.5, 0, 0]) circle(r = size/4, $fn = 32);  // Right bump
-        translate([-size/2.5, 0, 0]) circle(r = size/4, $fn = 32); // Left bump
-        translate([size/4, size/3, 0]) circle(r = size/5, $fn = 32);  // Top right
-        translate([-size/4, size/3, 0]) circle(r = size/5, $fn = 32); // Top left
-        translate([0, size/2.5, 0]) circle(r = size/6, $fn = 32); // Top center
-        
-        // Add some internal definition
-        translate([0, -size/8, 0]) {
-            circle(r = size/5, $fn = 32);
-        }
-    }
-}
-
-// Module for light symbols based on type with better spacing
-module light_symbols(type, size, spacing) {
-    if (show_light_symbols) {
-        if (type == 1) { 
-            // Full sun - 3 suns
-            for (i = [0 : 2]) {
-                translate([i * spacing - spacing, 0, 0]) {
-                    sun_symbol(size);
+            
+            // Sun rays outline - 8 triangular rays
+            for (i = [0 : 7]) {
+                rotate([0, 0, i * 45]) {
+                    translate([size/2.2, 0, 0]) {
+                        difference() {
+                            polygon([
+                                [0, -size/8],
+                                [size/3, 0],
+                                [0, size/8]
+                            ]);
+                            // Inner triangle to create outline
+                            translate([size/12, 0, 0]) {
+                                polygon([
+                                    [0, -size/12],
+                                    [size/5, 0],
+                                    [0, size/12]
+                                ]);
+                            }
+                        }
+                    }
                 }
             }
-        } else if (type == 2) { 
-            // Partial sun - sun + cloud
-            translate([-spacing/1.8, 0, 0]) {
-                sun_symbol(size);
-            }
-            translate([spacing/1.8, 0, 0]) {
-                cloud_symbol(size);
-            }
-        } else if (type == 3) { 
-            // Partial shade - cloud + sun
-            translate([-spacing/1.8, 0, 0]) {
-                cloud_symbol(size);
-            }
-            translate([spacing/1.8, 0, 0]) {
-                sun_symbol(size);
+        }
+    }
+}
+
+
+// Module for 4 light symbols with progress bar style filling
+module light_symbols(level, size, spacing) {
+    if (show_light_symbols) {
+        for (i = [0 : 3]) {
+            translate([i * spacing - 1.5 * spacing, 0, 0]) {
+                if (i < level) {
+                    sun_symbol_filled(size);
+                } else {
+                    sun_symbol_outlined(size);
+                }
             }
         }
     }
