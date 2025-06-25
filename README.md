@@ -37,17 +37,34 @@ plant-labeler/
 
 ## 🚀 Quick Start
 
-### Method 1: Individual Labels (OpenSCAD)
+### 🌱 **For Individual Labels (Recommended for Most Users)**
 
-1. **Install OpenSCAD**: Download from [openscad.org](https://openscad.org/downloads.html)
-2. **Open the file**: Load `enhanced_plant_labeler.scad` in OpenSCAD
-3. **Customize**: Use the Customizer panel (Window → Customizer) to set:
-   - Plant names and care requirements
-   - Label dimensions and features
-   - Symbol preferences
-4. **Generate**: Press F6 to render, then export as STL
+**Perfect if you have just a few plants and want to create labels one at a time.**
 
-### Method 2: Batch Generation (Python + OpenSCAD)
+1. **Download & Install**:
+   - Download `enhanced_plant_labeler.scad` from this repository
+   - Install OpenSCAD from [openscad.org](https://openscad.org/downloads.html)
+
+2. **Open & Customize**:
+   - Load `enhanced_plant_labeler.scad` in OpenSCAD
+   - Use the **Customizer panel** (Window → Customizer) to easily set:
+     - Plant names (common name, scientific name, nickname)
+     - Care requirements (water level 1-4, light level 1-4)
+     - Label features (spike, hanging holes, dimensions)
+     - Symbol preferences
+
+3. **Generate Your Label**:
+   - Press **F6** to render your custom label
+   - Export as **STL** for 3D printing
+   - Print and enjoy!
+
+**That's it!** No programming knowledge required - just point, click, and customize.
+
+---
+
+### 🏭 **For Batch Generation (Advanced Users with Many Plants)**
+
+**Perfect if you have dozens of plants and want to automate the process.**
 
 1. **Install Requirements**:
    ```bash
